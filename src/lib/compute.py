@@ -12,13 +12,18 @@ class Compute:
         print(total)
 
   def subtract(self):
-    pass
+    difference = 0
+    for item in self.operands:
+        difference -= item
+        print(difference)
 
   def divide(self):
     pass
     
   def multiply(self):
-    sum = 1
+    if self.operands is None
+        return
+    product = 1
     for item in self.operands:
-        sum *= item
-    print(sum)
+        product *= item
+    print(product)
