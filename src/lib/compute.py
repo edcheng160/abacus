@@ -8,23 +8,27 @@ class Compute:
   def add(self):
     total = 0
     for item in self.operands:
-        total =+ item
-        print(total)
+        total += item
+    print(total)
 
   def subtract(self):
-    difference = 0
+    if self.operands is None:
+        return
+    difference = self.operands.pop(0)
     for item in self.operands:
         difference -= item
-        print(difference)
+    print(difference)
 
   def divide(self):
-    quotient = 1
-    for item in self.operands:
-        quotient /= item
-    print(quotient)    
+      if self.operands is None:
+          return
+      quotient = self.operands.pop(0)
+      for item in self.operands:
+          quotient /= item
+      print(quotient)    
     
   def multiply(self):
-    if self.operands is None
+    if self.operands is None:
         return
     product = 1
     for item in self.operands:
