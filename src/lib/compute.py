@@ -10,7 +10,6 @@ class Compute:
     for item in self.operands:
         total =+ item
         print(total)
-        return total
 
   def subtract(self):
     pass
@@ -19,4 +18,7 @@ class Compute:
     pass
     
   def multiply(self):
-    pass
+    sum = 1
+    for item in self.operands:
+        sum *= item
+    print(sum)
