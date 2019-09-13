@@ -1,8 +1,7 @@
 # Exercise 1: Viewing and Establishing the Status of a File
 
 class Compute:
-  def __init__(self, operator, operands):
-    self.operator = operator
+  def __init__(self, operands):
     self.operands = operands
 
   def add(self):
@@ -14,17 +13,17 @@ class Compute:
   def subtract(self):
     if self.operands is None:
         return
-    difference = self.operands.pop(0)
-    for item in self.operands:
-        difference -= item
+    difference = self.operands[0]
+    for i in range(1, len(self.operands)):
+        difference -= self.operands[i]
     print(difference)
 
   def divide(self):
       if self.operands is None:
           return
-      quotient = self.operands.pop(0)
-      for item in self.operands:
-          quotient /= item
+      quotient = self.operands[0]
+      for i in range(1, len(self.operands)):
+          quotient /= self.operands[i]
       print(quotient)    
     
   def multiply(self):
@@ -34,3 +33,7 @@ class Compute:
     for item in self.operands:
         product *= item
     print(product)
+
+  def power(self):
+      res = self.operands[0] ** self.operands[1]
+      print(res)
