@@ -1,2 +1,3 @@
-some template text goes here
-some new line that's been modified
+some new line that's been modified again
+
+some stuff was added here
