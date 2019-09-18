@@ -1,4 +1,5 @@
 # Exercise blah 1: Viewing and Establishing the Status of a File
+# blah blah blah
 
 class Compute:
   def __init__(self, operands):
