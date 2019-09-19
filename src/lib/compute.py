@@ -1,6 +1,6 @@
 # Exercise blah 1: Viewing and Establishing the Status of a File
 # blah blah blah
-
+# commit #1
 class Compute:
   def __init__(self, operands):
     self.operands = operands
