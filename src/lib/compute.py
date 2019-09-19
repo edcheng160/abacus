@@ -5,6 +5,10 @@ class Compute:
   def __init__(self, operands):
     self.operands = operands
 
+  def exponent(self):
+    num_exponent = self.operands[0] ** self.operands[1]
+    print(num_exponent)
+
   def add(self):
     total = 0
     for item in self.operands:
