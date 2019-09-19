@@ -2,6 +2,7 @@
 # blah blah blah
 # commit #1
 # commit #2
+# commit #3
 
 class Compute:
   def __init__(self, operands):
