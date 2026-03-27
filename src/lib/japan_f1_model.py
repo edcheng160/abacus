@@ -1,9 +1,9 @@
 """
-Japan F1 Grand Prix Prediction Model
-Suzuka International Racing Course
+Japan F1 Grand Prix Prediction Model — 2026 Season
+Suzuka International Racing Course | March 29, 2026
 
-Uses historical race data, driver skill ratings, team performance,
-qualifying positions, and circuit-specific factors to predict race outcomes.
+Uses actual 2026 race results (Australia R1, China R2) to calibrate
+driver/team ratings and feed a form-adjusted Monte Carlo simulation.
 """
 
 import math
@@ -11,110 +11,307 @@ import random
 from typing import Optional
 
 
-# --- Historical Suzuka GP Winner Data (2015-2024) ---
-SUZUKA_WINNERS = {
-    2015: {"driver": "Lewis Hamilton",    "team": "Mercedes",    "grid": 1},
-    2016: {"driver": "Nico Rosberg",      "team": "Mercedes",    "grid": 2},
-    2017: {"driver": "Lewis Hamilton",    "team": "Mercedes",    "grid": 1},
-    2018: {"driver": "Lewis Hamilton",    "team": "Mercedes",    "grid": 1},
-    2019: {"driver": "Valtteri Bottas",   "team": "Mercedes",    "grid": 2},
-    2022: {"driver": "Max Verstappen",    "team": "Red Bull",    "grid": 1},
-    2023: {"driver": "Max Verstappen",    "team": "Red Bull",    "grid": 1},
-    2024: {"driver": "Max Verstappen",    "team": "Red Bull",    "grid": 1},
+# ---------------------------------------------------------------------------
+# ACTUAL 2026 RACE RESULTS (used to compute form scores)
+# Points: 25-18-15-12-10-8-6-4-2-1, DNF/DNS = 0
+# ---------------------------------------------------------------------------
+
+RACE_RESULTS_2026 = {
+    "Australia": {
+        "race": {
+            "George Russell":    {"pos": 1,  "grid": 1,  "points": 25, "status": "Finished"},
+            "Kimi Antonelli":    {"pos": 2,  "grid": 2,  "points": 18, "status": "Finished"},
+            "Charles Leclerc":   {"pos": 3,  "grid": 4,  "points": 15, "status": "Finished"},
+            "Lewis Hamilton":    {"pos": 4,  "grid": 7,  "points": 12, "status": "Finished"},
+            "Lando Norris":      {"pos": 5,  "grid": 6,  "points": 10, "status": "Finished"},
+            "Max Verstappen":    {"pos": 6,  "grid": 20, "points":  8, "status": "Finished"},  # +FL bonus included
+            "Oliver Bearman":    {"pos": 7,  "grid": 12, "points":  6, "status": "Finished"},
+            "Arvid Lindblad":    {"pos": 8,  "grid": 9,  "points":  4, "status": "Finished"},
+            "Gabriel Bortoleto": {"pos": 9,  "grid": 10, "points":  2, "status": "Finished"},
+            "Pierre Gasly":      {"pos": 10, "grid": 14, "points":  1, "status": "Finished"},
+            "Esteban Ocon":      {"pos": 11, "grid": 13, "points":  0, "status": "Finished"},
+            "Alex Albon":        {"pos": 12, "grid": 15, "points":  0, "status": "Finished"},
+            "Liam Lawson":       {"pos": 13, "grid": 8,  "points":  0, "status": "Finished"},
+            "Franco Colapinto":  {"pos": 14, "grid": 16, "points":  0, "status": "Finished"},
+            "Carlos Sainz":      {"pos": 15, "grid": 21, "points":  0, "status": "Finished"},
+            "Sergio Perez":      {"pos": 16, "grid": 18, "points":  0, "status": "Finished"},
+            "Lance Stroll":      {"pos": 17, "grid": 22, "points":  0, "status": "DNF"},
+            "Fernando Alonso":   {"pos": 18, "grid": 17, "points":  0, "status": "DNF"},
+            "Valtteri Bottas":   {"pos": 19, "grid": 19, "points":  0, "status": "DNF"},
+            "Isack Hadjar":      {"pos": 20, "grid": 3,  "points":  0, "status": "DNF"},
+            "Oscar Piastri":     {"pos": 21, "grid": 5,  "points":  0, "status": "DNS"},
+            "Nico Hulkenberg":   {"pos": 22, "grid": 11, "points":  0, "status": "DNS"},
+        }
+    },
+    "China": {
+        "sprint": {
+            "George Russell":    {"pos": 1, "points": 8},
+            "Charles Leclerc":   {"pos": 2, "points": 7},
+            "Lewis Hamilton":    {"pos": 3, "points": 6},
+            "Lando Norris":      {"pos": 4, "points": 5},
+            "Kimi Antonelli":    {"pos": 5, "points": 4},  # 10s penalty already served
+            "Oscar Piastri":     {"pos": 6, "points": 3},
+            "Liam Lawson":       {"pos": 7, "points": 2},
+            "Oliver Bearman":    {"pos": 8, "points": 1},
+            "Max Verstappen":    {"pos": 9, "points": 0},
+        },
+        "race": {
+            "Kimi Antonelli":    {"pos": 1,  "grid": 1,  "points": 25, "status": "Finished"},
+            "George Russell":    {"pos": 2,  "grid": 2,  "points": 18, "status": "Finished"},
+            "Lewis Hamilton":    {"pos": 3,  "grid": 3,  "points": 15, "status": "Finished"},
+            "Charles Leclerc":   {"pos": 4,  "grid": 4,  "points": 12, "status": "Finished"},
+            "Oliver Bearman":    {"pos": 5,  "grid": 10, "points": 10, "status": "Finished"},
+            "Pierre Gasly":      {"pos": 6,  "grid": 7,  "points":  8, "status": "Finished"},
+            "Liam Lawson":       {"pos": 7,  "grid": 14, "points":  6, "status": "Finished"},
+            "Isack Hadjar":      {"pos": 8,  "grid": 9,  "points":  4, "status": "Finished"},
+            "Carlos Sainz":      {"pos": 9,  "grid": 17, "points":  2, "status": "Finished"},
+            "Franco Colapinto":  {"pos": 10, "grid": 12, "points":  1, "status": "Finished"},
+            "Nico Hulkenberg":   {"pos": 11, "grid": 11, "points":  0, "status": "Finished"},
+            "Arvid Lindblad":    {"pos": 12, "grid": 15, "points":  0, "status": "Finished"},
+            "Valtteri Bottas":   {"pos": 13, "grid": 20, "points":  0, "status": "Finished"},
+            "Esteban Ocon":      {"pos": 14, "grid": 13, "points":  0, "status": "Finished"},  # 10s penalty
+            "Sergio Perez":      {"pos": 15, "grid": 22, "points":  0, "status": "Finished"},
+            "Max Verstappen":    {"pos": 16, "grid": 8,  "points":  0, "status": "DNF"},
+            "Fernando Alonso":   {"pos": 17, "grid": 19, "points":  0, "status": "DNF"},
+            "Lance Stroll":      {"pos": 18, "grid": 21, "points":  0, "status": "DNF"},
+            "Lando Norris":      {"pos": 19, "grid": 6,  "points":  0, "status": "DNS"},
+            "Oscar Piastri":     {"pos": 20, "grid": 5,  "points":  0, "status": "DNS"},
+            "Gabriel Bortoleto": {"pos": 21, "grid": 16, "points":  0, "status": "DNS"},
+            "Alex Albon":        {"pos": 22, "grid": 18, "points":  0, "status": "DNS"},
+        }
+    }
 }
 
-# --- 2025 Driver Lineup with base ratings (0-100) ---
-# Ratings: overall_skill, suzuka_affinity, wet_weather, consistency, overtaking
-DRIVERS_2025 = [
+# Actual 2026 championship standings after Round 2
+STANDINGS_2026 = {
+    "George Russell":    51,
+    "Kimi Antonelli":    47,
+    "Charles Leclerc":   34,
+    "Lewis Hamilton":    33,
+    "Oliver Bearman":    17,
+    "Lando Norris":      15,
+    "Pierre Gasly":       9,
+    "Max Verstappen":     8,
+    "Liam Lawson":        8,
+    "Arvid Lindblad":     4,
+    "Isack Hadjar":       4,
+    "Oscar Piastri":      3,
+    "Carlos Sainz":       2,
+    "Gabriel Bortoleto":  2,
+    "Franco Colapinto":   1,
+    "Esteban Ocon":       0,
+    "Nico Hulkenberg":    0,
+    "Alex Albon":         0,
+    "Valtteri Bottas":    0,
+    "Sergio Perez":       0,
+    "Fernando Alonso":    0,
+    "Lance Stroll":       0,
+}
+
+# ---------------------------------------------------------------------------
+# 2026 DRIVER LINEUP
+# Base ratings updated from pre-season expectations + 2026 early evidence
+# ---------------------------------------------------------------------------
+DRIVERS_2026 = [
+    # Mercedes — dominant car, both drivers performing
     {
-        "name": "Max Verstappen",
-        "team": "Red Bull Racing",
-        "number": 1,
-        "skill": 97,
-        "suzuka_affinity": 95,   # 3 wins at Suzuka
-        "wet_weather": 92,
-        "consistency": 95,
-        "overtaking": 88,
+        "name": "George Russell",
+        "team": "Mercedes",
+        "number": 63,
+        "skill": 90,
+        "suzuka_affinity": 78,
+        "wet_weather": 85,
+        "consistency": 91,
+        "overtaking": 80,
     },
     {
-        "name": "Liam Lawson",
-        "team": "Red Bull Racing",
-        "number": 30,
-        "skill": 78,
-        "suzuka_affinity": 60,
-        "wet_weather": 70,
-        "consistency": 72,
-        "overtaking": 75,
+        "name": "Kimi Antonelli",
+        "team": "Mercedes",
+        "number": 12,
+        "skill": 86,
+        "suzuka_affinity": 62,   # limited Suzuka history
+        "wet_weather": 76,
+        "consistency": 82,
+        "overtaking": 80,
     },
+    # Ferrari — strong second, Hamilton in fine form
     {
         "name": "Lewis Hamilton",
         "team": "Ferrari",
         "number": 44,
         "skill": 91,
-        "suzuka_affinity": 88,   # 4 wins at Suzuka
+        "suzuka_affinity": 88,   # 4 Suzuka wins (2015-18)
         "wet_weather": 90,
-        "consistency": 85,
-        "overtaking": 82,
+        "consistency": 86,
+        "overtaking": 83,
     },
     {
         "name": "Charles Leclerc",
         "team": "Ferrari",
         "number": 16,
         "skill": 89,
-        "suzuka_affinity": 75,
+        "suzuka_affinity": 76,
         "wet_weather": 82,
-        "consistency": 80,
+        "consistency": 81,
         "overtaking": 80,
     },
-    {
-        "name": "George Russell",
-        "team": "Mercedes",
-        "number": 63,
-        "skill": 86,
-        "suzuka_affinity": 72,
-        "wet_weather": 83,
-        "consistency": 84,
-        "overtaking": 78,
-    },
-    {
-        "name": "Kimi Antonelli",
-        "team": "Mercedes",
-        "number": 12,
-        "skill": 76,
-        "suzuka_affinity": 55,
-        "wet_weather": 70,
-        "consistency": 72,
-        "overtaking": 74,
-    },
+    # McLaren — fast car but catastrophic reliability in 2026 so far
     {
         "name": "Lando Norris",
         "team": "McLaren",
         "number": 4,
-        "skill": 90,
-        "suzuka_affinity": 78,
-        "wet_weather": 82,
-        "consistency": 83,
-        "overtaking": 84,
+        "skill": 91,             # reigning world champion
+        "suzuka_affinity": 79,
+        "wet_weather": 83,
+        "consistency": 78,       # penalised by car unreliability
+        "overtaking": 85,
     },
     {
         "name": "Oscar Piastri",
         "team": "McLaren",
         "number": 81,
-        "skill": 85,
+        "skill": 86,
         "suzuka_affinity": 70,
-        "wet_weather": 78,
-        "consistency": 82,
-        "overtaking": 78,
+        "wet_weather": 79,
+        "consistency": 75,       # penalised by car unreliability
+        "overtaking": 79,
     },
+    # Red Bull — Verstappen driving brilliantly but car is struggling
+    {
+        "name": "Max Verstappen",
+        "team": "Red Bull Racing",
+        "number": 1,
+        "skill": 97,
+        "suzuka_affinity": 92,   # 3 Suzuka wins (2022-24)
+        "wet_weather": 93,
+        "consistency": 88,       # car DNF risk hurts
+        "overtaking": 92,
+    },
+    {
+        "name": "Isack Hadjar",
+        "team": "Red Bull Racing",
+        "number": 6,
+        "skill": 78,
+        "suzuka_affinity": 62,
+        "wet_weather": 70,
+        "consistency": 72,
+        "overtaking": 74,
+    },
+    # Racing Bulls
+    {
+        "name": "Liam Lawson",
+        "team": "Racing Bulls",
+        "number": 30,
+        "skill": 80,
+        "suzuka_affinity": 65,
+        "wet_weather": 74,
+        "consistency": 76,
+        "overtaking": 76,
+    },
+    {
+        "name": "Arvid Lindblad",
+        "team": "Racing Bulls",
+        "number": 58,
+        "skill": 75,             # impressive debut P8 Australia
+        "suzuka_affinity": 55,
+        "wet_weather": 68,
+        "consistency": 68,
+        "overtaking": 72,
+    },
+    # Haas — surprisingly strong in 2026
+    {
+        "name": "Oliver Bearman",
+        "team": "Haas",
+        "number": 87,
+        "skill": 81,             # P7 Australia, P5 China — upgraded
+        "suzuka_affinity": 62,
+        "wet_weather": 72,
+        "consistency": 76,
+        "overtaking": 74,
+    },
+    {
+        "name": "Esteban Ocon",
+        "team": "Haas",
+        "number": 31,
+        "skill": 77,
+        "suzuka_affinity": 68,
+        "wet_weather": 74,
+        "consistency": 73,
+        "overtaking": 71,
+    },
+    # Alpine
+    {
+        "name": "Pierre Gasly",
+        "team": "Alpine",
+        "number": 10,
+        "skill": 79,
+        "suzuka_affinity": 70,
+        "wet_weather": 76,
+        "consistency": 75,
+        "overtaking": 74,
+    },
+    {
+        "name": "Franco Colapinto",
+        "team": "Alpine",
+        "number": 43,
+        "skill": 76,
+        "suzuka_affinity": 58,
+        "wet_weather": 70,
+        "consistency": 70,
+        "overtaking": 73,
+    },
+    # Audi (formerly Sauber)
+    {
+        "name": "Nico Hulkenberg",
+        "team": "Audi",
+        "number": 27,
+        "skill": 77,
+        "suzuka_affinity": 66,
+        "wet_weather": 75,
+        "consistency": 72,
+        "overtaking": 71,
+    },
+    {
+        "name": "Gabriel Bortoleto",
+        "team": "Audi",
+        "number": 5,
+        "skill": 76,
+        "suzuka_affinity": 60,
+        "wet_weather": 70,
+        "consistency": 68,       # reliability issues so far
+        "overtaking": 74,
+    },
+    # Williams
+    {
+        "name": "Alex Albon",
+        "team": "Williams",
+        "number": 23,
+        "skill": 79,
+        "suzuka_affinity": 67,
+        "wet_weather": 76,
+        "consistency": 70,       # hydraulics DNS China
+        "overtaking": 73,
+    },
+    {
+        "name": "Carlos Sainz",
+        "team": "Williams",
+        "number": 55,
+        "skill": 85,
+        "suzuka_affinity": 73,
+        "wet_weather": 81,
+        "consistency": 82,
+        "overtaking": 77,
+    },
+    # Aston Martin — scoreless both races, both cars DNF/DNF
     {
         "name": "Fernando Alonso",
         "team": "Aston Martin",
         "number": 14,
         "skill": 87,
-        "suzuka_affinity": 80,   # 2006 winner
+        "suzuka_affinity": 80,   # 2006 Suzuka winner
         "wet_weather": 88,
-        "consistency": 82,
-        "overtaking": 85,
+        "consistency": 72,       # car failures drag this down
+        "overtaking": 86,
     },
     {
         "name": "Lance Stroll",
@@ -123,144 +320,116 @@ DRIVERS_2025 = [
         "skill": 72,
         "suzuka_affinity": 58,
         "wet_weather": 68,
-        "consistency": 68,
+        "consistency": 62,       # DNF both races
         "overtaking": 65,
     },
+    # Cadillac (new 11th team)
     {
-        "name": "Carlos Sainz",
-        "team": "Williams",
-        "number": 55,
-        "skill": 84,
+        "name": "Sergio Perez",
+        "team": "Cadillac",
+        "number": 11,
+        "skill": 76,
+        "suzuka_affinity": 70,
+        "wet_weather": 72,
+        "consistency": 70,
+        "overtaking": 72,
+    },
+    {
+        "name": "Valtteri Bottas",
+        "team": "Cadillac",
+        "number": 77,
+        "skill": 74,
         "suzuka_affinity": 72,
-        "wet_weather": 80,
-        "consistency": 83,
-        "overtaking": 76,
-    },
-    {
-        "name": "Alexander Albon",
-        "team": "Williams",
-        "number": 23,
-        "skill": 78,
-        "suzuka_affinity": 65,
-        "wet_weather": 74,
-        "consistency": 76,
-        "overtaking": 72,
-    },
-    {
-        "name": "Nico Hulkenberg",
-        "team": "Sauber",
-        "number": 27,
-        "skill": 76,
-        "suzuka_affinity": 65,
-        "wet_weather": 74,
-        "consistency": 74,
-        "overtaking": 70,
-    },
-    {
-        "name": "Gabriel Bortoleto",
-        "team": "Sauber",
-        "number": 5,
-        "skill": 74,
-        "suzuka_affinity": 58,
-        "wet_weather": 68,
-        "consistency": 70,
-        "overtaking": 72,
-    },
-    {
-        "name": "Pierre Gasly",
-        "team": "Alpine",
-        "number": 10,
-        "skill": 78,
-        "suzuka_affinity": 68,
         "wet_weather": 75,
-        "consistency": 74,
-        "overtaking": 73,
-    },
-    {
-        "name": "Jack Doohan",
-        "team": "Alpine",
-        "number": 7,
-        "skill": 73,
-        "suzuka_affinity": 58,
-        "wet_weather": 66,
         "consistency": 68,
-        "overtaking": 70,
-    },
-    {
-        "name": "Yuki Tsunoda",
-        "team": "RB",
-        "number": 22,
-        "skill": 79,
-        "suzuka_affinity": 82,   # Home race boost
-        "wet_weather": 76,
-        "consistency": 72,
-        "overtaking": 78,
-    },
-    {
-        "name": "Isack Hadjar",
-        "team": "RB",
-        "number": 6,
-        "skill": 74,
-        "suzuka_affinity": 60,
-        "wet_weather": 68,
-        "consistency": 70,
-        "overtaking": 73,
-    },
-    {
-        "name": "Esteban Ocon",
-        "team": "Haas",
-        "number": 31,
-        "skill": 76,
-        "suzuka_affinity": 66,
-        "wet_weather": 73,
-        "consistency": 74,
-        "overtaking": 70,
-    },
-    {
-        "name": "Oliver Bearman",
-        "team": "Haas",
-        "number": 87,
-        "skill": 74,
-        "suzuka_affinity": 58,
-        "wet_weather": 67,
-        "consistency": 70,
-        "overtaking": 71,
+        "overtaking": 68,
     },
 ]
 
-# --- Team car performance ratings (0-100) ---
-TEAM_CAR_2025 = {
-    "Red Bull Racing": {"pace": 94, "reliability": 90, "tire_management": 92, "downforce": 92},
-    "Ferrari":         {"pace": 91, "reliability": 86, "tire_management": 88, "downforce": 90},
-    "McLaren":         {"pace": 92, "reliability": 88, "tire_management": 91, "downforce": 89},
-    "Mercedes":        {"pace": 88, "reliability": 91, "tire_management": 89, "downforce": 87},
-    "Aston Martin":    {"pace": 82, "reliability": 87, "tire_management": 83, "downforce": 84},
-    "Williams":        {"pace": 80, "reliability": 85, "tire_management": 81, "downforce": 78},
-    "RB":              {"pace": 79, "reliability": 83, "tire_management": 80, "downforce": 80},
-    "Alpine":          {"pace": 78, "reliability": 82, "tire_management": 78, "downforce": 77},
-    "Haas":            {"pace": 76, "reliability": 80, "tire_management": 77, "downforce": 75},
-    "Sauber":          {"pace": 74, "reliability": 79, "tire_management": 76, "downforce": 73},
+# ---------------------------------------------------------------------------
+# 2026 TEAM CAR RATINGS — calibrated from actual Australia + China results
+# ---------------------------------------------------------------------------
+TEAM_CAR_2026 = {
+    "Mercedes":      {"pace": 97, "reliability": 94, "tire_management": 93, "downforce": 94},
+    "Ferrari":       {"pace": 91, "reliability": 88, "tire_management": 89, "downforce": 90},
+    "McLaren":       {"pace": 93, "reliability": 62, "tire_management": 90, "downforce": 91},  # fast but broken
+    "Red Bull Racing":{"pace": 87, "reliability": 74, "tire_management": 87, "downforce": 88}, # VER carrying the team
+    "Haas":          {"pace": 82, "reliability": 84, "tire_management": 80, "downforce": 79},  # surprisingly strong
+    "Racing Bulls":  {"pace": 80, "reliability": 84, "tire_management": 79, "downforce": 80},
+    "Alpine":        {"pace": 79, "reliability": 83, "tire_management": 78, "downforce": 77},
+    "Audi":          {"pace": 76, "reliability": 76, "tire_management": 75, "downforce": 74},
+    "Williams":      {"pace": 78, "reliability": 78, "tire_management": 78, "downforce": 76},
+    "Aston Martin":  {"pace": 74, "reliability": 68, "tire_management": 72, "downforce": 73},  # DNF both races
+    "Cadillac":      {"pace": 68, "reliability": 72, "tire_management": 67, "downforce": 66},
 }
 
-# --- Suzuka circuit characteristics ---
+# ---------------------------------------------------------------------------
+# FORM SCORE: points-per-race vs field average, weighted recent > older
+# Weight: China race=3, China sprint=1.5, Australia race=2
+# ---------------------------------------------------------------------------
+def _compute_form_scores() -> dict[str, float]:
+    """
+    Returns a form adjustment per driver (-8 to +8 range) based on
+    actual 2026 results vs expected finishing position.
+    """
+    weights = {"aus_race": 2.0, "chn_sprint": 1.5, "chn_race": 3.0}
+    total_w = sum(weights.values())
+    max_points = {"aus_race": 25, "chn_sprint": 8, "chn_race": 25}
+
+    scores: dict[str, float] = {}
+    for driver in DRIVERS_2026:
+        name = driver["name"]
+        aus = RACE_RESULTS_2026["Australia"]["race"].get(name, {})
+        chn_s = RACE_RESULTS_2026["China"]["sprint"].get(name, {})
+        chn_r = RACE_RESULTS_2026["China"]["race"].get(name, {})
+
+        aus_pts = aus.get("points", 0)
+        chn_s_pts = chn_s.get("points", 0)
+        chn_r_pts = chn_r.get("points", 0)
+
+        # Normalise each session 0-1
+        norm = (
+            weights["aus_race"]   * (aus_pts   / max_points["aus_race"]) +
+            weights["chn_sprint"] * (chn_s_pts / max_points["chn_sprint"]) +
+            weights["chn_race"]   * (chn_r_pts / max_points["chn_race"])
+        ) / total_w
+
+        # Also penalise DNS/DNFs
+        dnf_count = sum(
+            1 for r in [aus, chn_r]
+            if r.get("status", "") in ("DNF", "DNS")
+        )
+
+        # Scale to -8..+8 adjustment on base score
+        form = (norm * 16) - 2 - (dnf_count * 1.5)
+        scores[name] = round(form, 2)
+
+    return scores
+
+FORM_SCORES = _compute_form_scores()
+
+# ---------------------------------------------------------------------------
+# SUZUKA CIRCUIT CHARACTERISTICS
+# ---------------------------------------------------------------------------
 SUZUKA_FACTORS = {
-    "circuit_type": "technical",         # High-downforce, technical circuit
+    "circuit_type": "technical",
     "lap_length_km": 5.807,
     "race_laps": 53,
-    "drs_zones": 1,                       # Only 1 DRS zone (hard to overtake)
-    "overtaking_difficulty": 0.85,        # 1.0 = very hard, 0.0 = easy
+    "drs_zones": 1,
+    "overtaking_difficulty": 0.85,
     "tire_degradation": "medium",
-    "weather_variability": 0.25,          # Suzuka can be unpredictable
-    "pole_to_win_rate": 0.55,             # Historical pole-to-win conversion
+    "weather_variability": 0.25,
+    "pole_to_win_rate": 0.55,
 }
 
 
 def _weighted_score(driver: dict, car: dict, grid_pos: int,
-                    weather: str, safety_car_prob: float) -> float:
+                    weather: str, safety_car_prob: float,
+                    form_weight: float = 0.20) -> float:
     """
-    Compute a composite performance score for a driver given race conditions.
+    Composite performance score blending base ratings + 2026 form.
+    form_weight: how much the 2026 actual results adjust the base score (0-1).
     """
-    # Base driver+car score (60% driver, 40% car)
     driver_score = (
         0.35 * driver["skill"] +
         0.25 * driver["suzuka_affinity"] +
@@ -276,10 +445,14 @@ def _weighted_score(driver: dict, car: dict, grid_pos: int,
         0.15 * car["reliability"]
     )
 
-    combined = 0.60 * driver_score + 0.40 * car_score
+    base = 0.60 * driver_score + 0.40 * car_score
 
-    # Grid position penalty (harder to win from the back at Suzuka)
-    overtake_difficulty = SUZUKA_FACTORS["overtaking_difficulty"]
+    # Blend in recent form
+    form = FORM_SCORES.get(driver["name"], 0.0)
+    combined = base + form_weight * form * 10  # form scored -8..+8 → shift base
+
+    # Grid position adjustment (Suzuka: very hard to overtake)
+    od = SUZUKA_FACTORS["overtaking_difficulty"]
     if grid_pos == 1:
         grid_bonus = 8.0
     elif grid_pos == 2:
@@ -287,27 +460,21 @@ def _weighted_score(driver: dict, car: dict, grid_pos: int,
     elif grid_pos <= 5:
         grid_bonus = (6 - grid_pos) * 1.5
     elif grid_pos <= 10:
-        grid_bonus = -(grid_pos - 5) * 1.2 * overtake_difficulty
+        grid_bonus = -(grid_pos - 5) * 1.2 * od
     else:
-        grid_bonus = -(grid_pos - 5) * 2.0 * overtake_difficulty
+        grid_bonus = -(grid_pos - 5) * 2.0 * od
 
     # Weather modifier
     if weather == "wet":
-        wet_boost = (driver["wet_weather"] - 75) * 0.15
-        combined += wet_boost
+        combined += (driver["wet_weather"] - 75) * 0.15
     elif weather == "mixed":
-        wet_boost = (driver["wet_weather"] - 75) * 0.07
-        combined += wet_boost
+        combined += (driver["wet_weather"] - 75) * 0.07
 
-    # Safety car randomness factor (bunches up the field)
-    sc_equalizer = safety_car_prob * 5.0 * (1 - (grid_pos / 20))
+    # Safety car bunching effect
+    sc_eq = safety_car_prob * 5.0 * (1 - (grid_pos / 22))
 
-    score = combined + grid_bonus + sc_equalizer
-
-    # Add small random noise to simulate race chaos
-    noise = random.gauss(0, 2.5)
-    score += noise
-
+    score = combined + grid_bonus + sc_eq
+    score += random.gauss(0, 2.5)
     return score
 
 
@@ -321,48 +488,43 @@ def simulate_race(
     Simulate the Japan GP and return a predicted finishing order.
 
     Args:
-        qualifying_order: List of driver names in grid order (P1 first).
-                          If None, uses a predicted qualifying order based on car pace.
+        qualifying_order: Grid order (P1 first). If None, predicted from pace.
         weather: 'dry', 'wet', or 'mixed'
-        safety_car_probability: Probability of safety car deployment (0.0-1.0)
-        seed: Random seed for reproducibility
+        safety_car_probability: 0.0-1.0
+        seed: For reproducibility
 
     Returns:
-        List of dicts with predicted finishing positions, sorted P1 to P20.
+        List of result dicts sorted P1..P22.
     """
     if seed is not None:
         random.seed(seed)
 
-    # Build lookup maps
-    driver_map = {d["name"]: d for d in DRIVERS_2025}
+    driver_map = {d["name"]: d for d in DRIVERS_2026}
 
-    # Determine grid order
     if qualifying_order is None:
-        # Predict quali order: sort by car pace + driver skill
         predicted_quali = sorted(
-            DRIVERS_2025,
+            DRIVERS_2026,
             key=lambda d: (
-                0.55 * TEAM_CAR_2025[d["team"]]["pace"] +
+                0.50 * TEAM_CAR_2026[d["team"]]["pace"] +
                 0.30 * d["skill"] +
-                0.15 * d["suzuka_affinity"] +
+                0.20 * d["suzuka_affinity"] +
                 random.gauss(0, 1.5)
             ),
             reverse=True,
         )
         qualifying_order = [d["name"] for d in predicted_quali]
 
-    # Score every driver
     results = []
     for grid_pos, name in enumerate(qualifying_order, start=1):
         if name not in driver_map:
             continue
         driver = driver_map[name]
-        car = TEAM_CAR_2025[driver["team"]]
+        car = TEAM_CAR_2026[driver["team"]]
         score = _weighted_score(driver, car, grid_pos, weather, safety_car_probability)
 
-        # Reliability DNF check
+        # Reliability-based DNF (McLaren and Aston Martin notably poor)
         reliability = car["reliability"] / 100.0
-        dnf = random.random() > reliability * 0.97  # ~3% base DNF chance per car
+        dnf = random.random() > reliability * 0.97
         results.append({
             "name": name,
             "team": driver["team"],
@@ -370,9 +532,10 @@ def simulate_race(
             "grid": grid_pos,
             "score": score,
             "dnf": dnf,
+            "form": FORM_SCORES.get(name, 0.0),
+            "champ_pts": STANDINGS_2026.get(name, 0),
         })
 
-    # Sort: finishers by score desc, DNFs at the back
     finishers = sorted([r for r in results if not r["dnf"]], key=lambda x: x["score"], reverse=True)
     dnfs = [r for r in results if r["dnf"]]
     random.shuffle(dnfs)
@@ -391,39 +554,25 @@ def run_monte_carlo(
     weather: str = "dry",
     safety_car_probability: float = 0.35,
 ) -> dict:
-    """
-    Run N Monte Carlo simulations and aggregate win/podium probabilities.
+    """Run N simulations and return win/podium/points probabilities."""
+    win_counts: dict[str, int] = {d["name"]: 0 for d in DRIVERS_2026}
+    podium_counts: dict[str, int] = {d["name"]: 0 for d in DRIVERS_2026}
+    points_counts: dict[str, int] = {d["name"]: 0 for d in DRIVERS_2026}
+    finish_totals: dict[str, int] = {d["name"]: 0 for d in DRIVERS_2026}
+    dnf_counts: dict[str, int] = {d["name"]: 0 for d in DRIVERS_2026}
 
-    Returns:
-        Dict mapping driver name -> {win_pct, podium_pct, points_pct, avg_finish}
-    """
-    win_counts: dict[str, int] = {}
-    podium_counts: dict[str, int] = {}
-    points_counts: dict[str, int] = {}
-    finish_totals: dict[str, int] = {}
-    dnf_counts: dict[str, int] = {}
-
-    for driver in DRIVERS_2025:
-        name = driver["name"]
-        win_counts[name] = 0
-        podium_counts[name] = 0
-        points_counts[name] = 0
-        finish_totals[name] = 0
-        dnf_counts[name] = 0
-
-    for sim in range(n_simulations):
+    for _ in range(n_simulations):
         result = simulate_race(
             qualifying_order=qualifying_order,
             weather=weather,
             safety_car_probability=safety_car_probability,
-            seed=None,
         )
         for entry in result:
             name = entry["name"]
             pos = entry["position"]
             if entry["dnf"]:
                 dnf_counts[name] += 1
-                finish_totals[name] += 20  # treat DNF as last
+                finish_totals[name] += 22
             else:
                 finish_totals[name] += pos
                 if pos == 1:
@@ -434,7 +583,7 @@ def run_monte_carlo(
                     points_counts[name] += 1
 
     stats = {}
-    for driver in DRIVERS_2025:
+    for driver in DRIVERS_2026:
         name = driver["name"]
         stats[name] = {
             "team": driver["team"],
@@ -444,28 +593,33 @@ def run_monte_carlo(
             "points_pct": round(100 * points_counts[name] / n_simulations, 1),
             "avg_finish": round(finish_totals[name] / n_simulations, 2),
             "dnf_pct": round(100 * dnf_counts[name] / n_simulations, 1),
+            "champ_pts": STANDINGS_2026.get(name, 0),
+            "form": FORM_SCORES.get(name, 0.0),
         }
 
     return stats
 
 
 def predict_qualifying() -> list[dict]:
-    """
-    Predict qualifying order based on car pace, driver skill and Suzuka affinity.
-    Returns sorted list P1 to P20.
-    """
+    """Predict qualifying order for Japan 2026."""
     random.seed(42)
     scores = []
-    for driver in DRIVERS_2025:
-        car = TEAM_CAR_2025[driver["team"]]
+    for driver in DRIVERS_2026:
+        car = TEAM_CAR_2026[driver["team"]]
         qual_score = (
-            0.50 * car["pace"] +
-            0.30 * driver["skill"] +
-            0.20 * driver["suzuka_affinity"] +
+            0.48 * car["pace"] +
+            0.28 * driver["skill"] +
+            0.14 * driver["suzuka_affinity"] +
+            0.10 * FORM_SCORES.get(driver["name"], 0.0) +
             random.gauss(0, 1.0)
         )
-        scores.append({"name": driver["name"], "team": driver["team"],
-                        "number": driver["number"], "qual_score": qual_score})
+        scores.append({
+            "name": driver["name"],
+            "team": driver["team"],
+            "number": driver["number"],
+            "qual_score": qual_score,
+            "champ_pts": STANDINGS_2026.get(driver["name"], 0),
+        })
 
     scores.sort(key=lambda x: x["qual_score"], reverse=True)
     for pos, entry in enumerate(scores, start=1):
