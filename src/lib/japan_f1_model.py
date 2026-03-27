@@ -2,8 +2,9 @@
 Japan F1 Grand Prix Prediction Model — 2026 Season
 Suzuka International Racing Course | March 29, 2026
 
-Uses actual 2026 race results (Australia R1, China R2) to calibrate
-driver/team ratings and feed a form-adjusted Monte Carlo simulation.
+Data sources:
+  - Race results: Australia R1 + China R2 (actual 2026 results)
+  - Practice data: FP1 + FP2 from Suzuka (March 27, 2026)
 """
 
 import math
@@ -347,21 +348,135 @@ DRIVERS_2026 = [
 ]
 
 # ---------------------------------------------------------------------------
-# 2026 TEAM CAR RATINGS — calibrated from actual Australia + China results
+# 2026 TEAM CAR RATINGS — base from Australia+China, refined by Suzuka FP2
+# FP2 order: McLaren > Mercedes > Ferrari >> Audi ~ Williams ~ Haas > RB ...
 # ---------------------------------------------------------------------------
 TEAM_CAR_2026 = {
-    "Mercedes":      {"pace": 97, "reliability": 94, "tire_management": 93, "downforce": 94},
-    "Ferrari":       {"pace": 91, "reliability": 88, "tire_management": 89, "downforce": 90},
-    "McLaren":       {"pace": 93, "reliability": 62, "tire_management": 90, "downforce": 91},  # fast but broken
-    "Red Bull Racing":{"pace": 87, "reliability": 74, "tire_management": 87, "downforce": 88}, # VER carrying the team
-    "Haas":          {"pace": 82, "reliability": 84, "tire_management": 80, "downforce": 79},  # surprisingly strong
-    "Racing Bulls":  {"pace": 80, "reliability": 84, "tire_management": 79, "downforce": 80},
-    "Alpine":        {"pace": 79, "reliability": 83, "tire_management": 78, "downforce": 77},
-    "Audi":          {"pace": 76, "reliability": 76, "tire_management": 75, "downforce": 74},
-    "Williams":      {"pace": 78, "reliability": 78, "tire_management": 78, "downforce": 76},
-    "Aston Martin":  {"pace": 74, "reliability": 68, "tire_management": 72, "downforce": 73},  # DNF both races
-    "Cadillac":      {"pace": 68, "reliability": 72, "tire_management": 67, "downforce": 66},
+    "Mercedes":       {"pace": 96, "reliability": 94, "tire_management": 93, "downforce": 94},
+    "Ferrari":        {"pace": 90, "reliability": 88, "tire_management": 89, "downforce": 90},
+    "McLaren":        {"pace": 95, "reliability": 62, "tire_management": 91, "downforce": 92},  # fastest at Suzuka, still unreliable
+    "Red Bull Racing":{"pace": 83, "reliability": 74, "tire_management": 86, "downforce": 87},  # understeer at Suzuka, FP2 P10
+    "Haas":           {"pace": 82, "reliability": 84, "tire_management": 80, "downforce": 79},
+    "Racing Bulls":   {"pace": 80, "reliability": 80, "tire_management": 79, "downforce": 80},  # Lindblad gearbox issues
+    "Alpine":         {"pace": 79, "reliability": 83, "tire_management": 78, "downforce": 77},
+    "Audi":           {"pace": 79, "reliability": 76, "tire_management": 76, "downforce": 75},  # Hulkenberg P7 FP2
+    "Williams":       {"pace": 79, "reliability": 78, "tire_management": 78, "downforce": 77},  # Albon P8 FP2
+    "Aston Martin":   {"pace": 72, "reliability": 68, "tire_management": 71, "downforce": 71},  # 3.5s+ off pace
+    "Cadillac":       {"pace": 67, "reliability": 72, "tire_management": 66, "downforce": 65},
 }
+
+# ---------------------------------------------------------------------------
+# JAPAN FP1 — Friday March 27 | Fastest: Russell 1:31.666
+# Gaps in seconds. None = no representative time set.
+# ---------------------------------------------------------------------------
+FP1_GAPS: dict[str, float | None] = {
+    "George Russell":    0.000,
+    "Kimi Antonelli":    0.026,
+    "Lando Norris":      0.132,
+    "Oscar Piastri":     0.199,
+    "Charles Leclerc":   0.289,
+    "Lewis Hamilton":    0.374,
+    "Max Verstappen":    None,   # sandbagging — only long runs, ignore
+    "Liam Lawson":       0.863,
+    "Esteban Ocon":      0.935,
+    "Arvid Lindblad":    0.999,
+    "Gabriel Bortoleto": 1.093,
+    "Nico Hulkenberg":   1.132,
+    "Isack Hadjar":      1.137,
+    "Oliver Bearman":    1.234,
+    "Pierre Gasly":      1.312,
+    "Franco Colapinto":  1.695,
+    "Carlos Sainz":      1.717,
+    "Alex Albon":        2.031,
+    "Sergio Perez":      2.555,
+    "Valtteri Bottas":   2.824,
+    "Lance Stroll":      3.628,
+    "Fernando Alonso":   None,   # Crawford drove (mandatory rookie sub — Alonso at birth of child)
+}
+
+# ---------------------------------------------------------------------------
+# JAPAN FP2 — Friday March 27 | Fastest: Piastri 1:30.133
+# Most representative session for qualifying pace (track rubbered in, soft tyres)
+# ---------------------------------------------------------------------------
+FP2_GAPS: dict[str, float | None] = {
+    "Oscar Piastri":     0.000,
+    "Kimi Antonelli":    0.092,
+    "George Russell":    0.205,
+    "Lando Norris":      0.516,
+    "Charles Leclerc":   0.713,
+    "Lewis Hamilton":    0.847,
+    "Nico Hulkenberg":   1.308,
+    "Alex Albon":        1.363,
+    "Oliver Bearman":    1.365,
+    "Max Verstappen":    1.376,
+    "Esteban Ocon":      1.399,
+    "Liam Lawson":       1.457,
+    "Carlos Sainz":      1.475,
+    "Pierre Gasly":      1.601,
+    "Isack Hadjar":      1.626,
+    "Gabriel Bortoleto": 1.800,
+    "Franco Colapinto":  2.305,
+    "Valtteri Bottas":   2.482,
+    "Fernando Alonso":   3.463,
+    "Sergio Perez":      3.556,
+    "Lance Stroll":      3.818,
+    "Arvid Lindblad":    None,   # gearbox failure — no time set
+}
+
+# Notable FP incidents that affect predictions
+PRACTICE_INCIDENTS = [
+    "Norris: hydraulics scare in FP2 (garage 23min) — McLaren reliability concern",
+    "Verstappen: repeated understeer complaints on radio, FP2 P10 (+1.376s)",
+    "Hulkenberg: FP2 P7 — Audi fastest midfield car at Suzuka",
+    "Albon: FP2 P8 — Williams strong, but contact with Perez in FP1 under investigation",
+    "Lindblad: gearbox failure FP2 — no representative time, grid position risk",
+    "Alonso: missed FP1 (Crawford subbed) — absent at birth of child, returned FP2",
+    "Colapinto: under investigation for erratic driving / impeding Verstappen in FP2",
+    "Bortoleto (Audi): power unit work limited him to 2 laps early in FP2",
+    "Hamilton: radio — 'no confidence in the car' during FP2 long runs",
+]
+
+
+def _gap_to_adjustment(gap: float | None, scale: float = 4.0) -> float:
+    """
+    Convert a lap time gap (seconds behind fastest) to a score adjustment.
+    0.0s gap → +8.0 | 2.0s → 0.0 | 4.0s → -8.0 | None → 0.0 (neutral)
+    """
+    if gap is None:
+        return 0.0
+    return max(-10.0, 8.0 - gap * scale)
+
+
+def _compute_practice_scores() -> dict[str, float]:
+    """
+    Weighted average of FP1 and FP2 pace adjustments.
+    FP2 weight 2.0 (soft tyres, rubbered track ≈ qualifying conditions).
+    FP1 weight 1.0.
+    Returns adjustment in the same -10..+8 range as gap_to_adjustment.
+    """
+    scores: dict[str, float] = {}
+    for driver in DRIVERS_2026:
+        name = driver["name"]
+        fp1_adj = _gap_to_adjustment(FP1_GAPS.get(name))
+        fp2_adj = _gap_to_adjustment(FP2_GAPS.get(name))
+        fp1_has = FP1_GAPS.get(name) is not None
+        fp2_has = FP2_GAPS.get(name) is not None
+
+        if fp1_has and fp2_has:
+            score = (1.0 * fp1_adj + 2.0 * fp2_adj) / 3.0
+        elif fp2_has:
+            score = fp2_adj
+        elif fp1_has:
+            score = fp1_adj * 0.7   # FP1 alone is less reliable
+        else:
+            score = 0.0             # no data (Lindblad FP2 + Verstappen/Alonso FP1)
+
+        scores[name] = round(score, 2)
+
+    return scores
+
+
+PRACTICE_SCORES = _compute_practice_scores()
 
 # ---------------------------------------------------------------------------
 # FORM SCORE: points-per-race vs field average, weighted recent > older
@@ -425,10 +540,10 @@ SUZUKA_FACTORS = {
 
 def _weighted_score(driver: dict, car: dict, grid_pos: int,
                     weather: str, safety_car_prob: float,
-                    form_weight: float = 0.20) -> float:
+                    form_weight: float = 0.15,
+                    practice_weight: float = 0.15) -> float:
     """
-    Composite performance score blending base ratings + 2026 form.
-    form_weight: how much the 2026 actual results adjust the base score (0-1).
+    Composite performance score blending base ratings + 2026 form + practice pace.
     """
     driver_score = (
         0.35 * driver["skill"] +
@@ -447,9 +562,11 @@ def _weighted_score(driver: dict, car: dict, grid_pos: int,
 
     base = 0.60 * driver_score + 0.40 * car_score
 
-    # Blend in recent form
+    # Blend in recent championship form
     form = FORM_SCORES.get(driver["name"], 0.0)
-    combined = base + form_weight * form * 10  # form scored -8..+8 → shift base
+    # Blend in Suzuka practice pace (most circuit-specific signal)
+    practice = PRACTICE_SCORES.get(driver["name"], 0.0)
+    combined = base + form_weight * form * 10 + practice_weight * practice * 10
 
     # Grid position adjustment (Suzuka: very hard to overtake)
     od = SUZUKA_FACTORS["overtaking_difficulty"]
@@ -601,24 +718,36 @@ def run_monte_carlo(
 
 
 def predict_qualifying() -> list[dict]:
-    """Predict qualifying order for Japan 2026."""
+    """
+    Predict qualifying order for Japan 2026.
+    FP2 practice pace is heavily weighted — it's the best predictor of Q3 pace
+    on a rubbered-in, soft-tyre track at Suzuka.
+    """
     random.seed(42)
     scores = []
     for driver in DRIVERS_2026:
         car = TEAM_CAR_2026[driver["team"]]
+        practice = PRACTICE_SCORES.get(driver["name"], 0.0)
+        # Practice pace: 45% (dominant signal at this point in weekend)
+        # Car pace: 25% | Driver skill: 18% | Suzuka affinity: 12%
         qual_score = (
-            0.48 * car["pace"] +
-            0.28 * driver["skill"] +
-            0.14 * driver["suzuka_affinity"] +
-            0.10 * FORM_SCORES.get(driver["name"], 0.0) +
-            random.gauss(0, 1.0)
+            0.25 * car["pace"] +
+            0.18 * driver["skill"] +
+            0.12 * driver["suzuka_affinity"] +
+            0.45 * (75 + practice * 2.5) +   # scale practice adj to ~same range as ratings
+            random.gauss(0, 0.8)
         )
+        fp2_gap = FP2_GAPS.get(driver["name"])
+        fp1_gap = FP1_GAPS.get(driver["name"])
         scores.append({
             "name": driver["name"],
             "team": driver["team"],
             "number": driver["number"],
             "qual_score": qual_score,
             "champ_pts": STANDINGS_2026.get(driver["name"], 0),
+            "fp1_gap": fp1_gap,
+            "fp2_gap": fp2_gap,
+            "practice_score": practice,
         })
 
     scores.sort(key=lambda x: x["qual_score"], reverse=True)

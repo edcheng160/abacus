@@ -2,7 +2,7 @@
 Japan F1 Grand Prix 2026 — Race Prediction Runner
 Suzuka International Racing Course | March 29, 2026
 
-Calibrated from actual 2026 results: Australia (R1) + China (R2)
+Data: Australia R1 + China R2 results + Suzuka FP1/FP2 practice (March 27)
 
 Usage:
     python japan_f1_prediction.py
@@ -42,6 +42,55 @@ def print_header(title: str) -> None:
     print(line)
 
 
+def fmt_gap(gap) -> str:
+    if gap is None:
+        return "  no time"
+    return f" +{gap:.3f}s"
+
+
+def print_practice() -> None:
+    print_header("SUZUKA PRACTICE RESULTS  (Friday March 27)")
+
+    print(f"\n  FP1 — Russell fastest (1:31.666) | Cool & dry, new asphalt low-grip")
+    print(f"  {'P':>3}  {'Driver':<22}  {'Team':<20}  {'Gap':>10}")
+    print("  " + "-" * 58)
+    fp1_order = sorted(
+        [(n, g) for n, g in model.FP1_GAPS.items() if g is not None],
+        key=lambda x: x[1]
+    )
+    for pos, (name, gap) in enumerate(fp1_order, start=1):
+        team = next((d["team"] for d in model.DRIVERS_2026 if d["name"] == name), "—")
+        note = " *sandbagging" if name == "Max Verstappen" else ""
+        print(f"  {pos:>3}  {name:<22}  {team:<20}  {fmt_gap(gap)}{note}")
+    print(f"   —   {'Alonso (Crawford sub)':<22}  {'Aston Martin':<20}  {'no time':>10}")
+    print(f"   —   {'Verstappen':<22}  {'Red Bull Racing':<20}  {'long runs only':>10}")
+
+    print(f"\n  FP2 — Piastri fastest (1:30.133) | Track rubbered in, all soft tyres")
+    print(f"  {'P':>3}  {'Driver':<22}  {'Team':<20}  {'Gap':>10}  FP2 Significance")
+    print("  " + "-" * 75)
+    fp2_order = sorted(
+        [(n, g) for n, g in model.FP2_GAPS.items() if g is not None],
+        key=lambda x: x[1]
+    )
+    highlights = {
+        "Oscar Piastri":    "McLaren fastest — car suits Suzuka",
+        "Nico Hulkenberg":  "best midfield — Audi surprise",
+        "Alex Albon":       "Williams stronger than expected",
+        "Max Verstappen":   "P10 — understeer, car struggling here",
+        "Fernando Alonso":  "returned after missing FP1",
+    }
+    for pos, (name, gap) in enumerate(fp2_order, start=1):
+        team = next((d["team"] for d in model.DRIVERS_2026 if d["name"] == name), "—")
+        hl = f"  ← {highlights[name]}" if name in highlights else ""
+        print(f"  {pos:>3}  {name:<22}  {team:<20}  {fmt_gap(gap)}{hl}")
+    print(f"   —   {'Lindblad':<22}  {'Racing Bulls':<20}  {'no time':>10}  ← gearbox failure")
+
+    print(f"\n  KEY PRACTICE INCIDENTS")
+    print("  " + "-" * 58)
+    for note in model.PRACTICE_INCIDENTS:
+        print(f"  ⚠  {note}")
+
+
 def print_standings() -> None:
     print_header("2026 CHAMPIONSHIP STANDINGS  (after R2 — China)")
     print(f"  {'Pos':>3}  {'Driver':<22}  {'Team':<20}  {'Pts':>5}  {'Form':<12}")
@@ -55,13 +104,15 @@ def print_standings() -> None:
 
 def print_qualifying(quali_result: list[dict]) -> None:
     print_header("PREDICTED QUALIFYING — SUZUKA 2026")
-    print(f"  {'P':>3}  {'#':>3}  {'Driver':<22}  {'Team':<20}  {'Champ Pts':>10}")
-    print("  " + "-" * 62)
+    print(f"  {'P':>3}  {'#':>3}  {'Driver':<22}  {'Team':<20}  {'FP1 Gap':>9}  {'FP2 Gap':>9}  {'Champ Pts':>10}")
+    print("  " + "-" * 80)
     for entry in quali_result:
         grid = entry["predicted_grid"]
         flag = " ◄ POLE" if grid == 1 else ""
+        fp1 = fmt_gap(entry.get("fp1_gap"))
+        fp2 = fmt_gap(entry.get("fp2_gap"))
         print(f"  {grid:>3}  #{entry['number']:<3}  {entry['name']:<22}  "
-              f"{entry['team']:<20}  {entry['champ_pts']:>10}{flag}")
+              f"{entry['team']:<20}  {fp1:>9}  {fp2:>9}  {entry['champ_pts']:>10}{flag}")
 
 
 def print_single_race(race_result: list[dict], weather: str) -> None:
@@ -149,10 +200,13 @@ def main():
     print("\n" + "╔" + "═" * 64 + "╗")
     print("║" + "  JAPAN GRAND PRIX 2026 — PREDICTION MODEL".center(64) + "║")
     print("║" + "  Suzuka | Round 3 | March 29, 2026".center(64) + "║")
-    print("║" + "  Calibrated from: Australia R1 + China R2 actual results".center(64) + "║")
+    print("║" + "  Data: R1+R2 results + Suzuka FP1/FP2 (March 27)".center(64) + "║")
     print("╚" + "═" * 64 + "╝")
 
-    # 1. Championship context
+    # 1. Practice session results
+    print_practice()
+
+    # 2. Championship context
     print_standings()
 
     # 2. Predicted qualifying
@@ -194,7 +248,7 @@ def main():
     print(f"  Weather condition    :  {args.weather.upper()}")
     print(f"  Safety car prob      :  {args.sc_prob * 100:.0f}%")
     print(f"  Simulations run      :  {args.sims:,}")
-    print(f"  Data source          :  R1 Australia + R2 China actual results")
+    print(f"  Data source          :  R1 Australia + R2 China + Suzuka FP1/FP2")
     print()
 
 
