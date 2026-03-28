@@ -563,6 +563,71 @@ def _compute_form_scores() -> dict[str, float]:
 FORM_SCORES = _compute_form_scores()
 
 # ---------------------------------------------------------------------------
+# CONFIRMED QUALIFYING GRID — Japan GP 2026 (March 28)
+# Pole: Antonelli 1:28.778 | Q3 top 10 + Q2/Q1 eliminations
+# ---------------------------------------------------------------------------
+QUALIFYING_GRID_2026 = [
+    "Kimi Antonelli",    # P1  — pole, 1:28.778, back-to-back poles
+    "George Russell",    # P2  — +0.298s
+    "Oscar Piastri",     # P3  — +0.354s (McLaren ERS penalty risk if 4th unit needed)
+    "Charles Leclerc",   # P4  — +0.627s
+    "Lando Norris",      # P5  — +0.631s (3 ERS failures this season, penalty risk)
+    "Lewis Hamilton",    # P6  — +0.789s
+    "Pierre Gasly",      # P7  — +0.913s (Alpine surprise Q3)
+    "Isack Hadjar",      # P8  — +1.200s (eliminated Verstappen in Q2!)
+    "Gabriel Bortoleto", # P9  — +1.496s (Audi into Q3)
+    "Arvid Lindblad",    # P10 — +1.541s (Racing Bulls into Q3)
+    "Max Verstappen",    # P11 — Q2 exit, "completely undriveable" RB22
+    "Esteban Ocon",      # P12 — Q2 exit
+    "Nico Hulkenberg",   # P13 — Q2 exit
+    "Liam Lawson",       # P14 — Q2 exit
+    "Franco Colapinto",  # P15 — Q2 exit
+    "Carlos Sainz",      # P16 — Q2 exit
+    "Alex Albon",        # P17 — Q1 exit
+    "Oliver Bearman",    # P18 — Q1 shock exit (mistake in Esses)
+    "Sergio Perez",      # P19 — Q1 exit
+    "Valtteri Bottas",   # P20 — Q1 exit
+    "Fernando Alonso",   # P21 — Q1 exit
+    "Lance Stroll",      # P22 — Q1 exit
+]
+
+QUALIFYING_TIMES_2026 = {
+    "Kimi Antonelli":    {"time": "1:28.778", "q_stage": "Q3", "gap": "+0.000s"},
+    "George Russell":    {"time": "1:29.076", "q_stage": "Q3", "gap": "+0.298s"},
+    "Oscar Piastri":     {"time": "1:29.132", "q_stage": "Q3", "gap": "+0.354s"},
+    "Charles Leclerc":   {"time": "1:29.405", "q_stage": "Q3", "gap": "+0.627s"},
+    "Lando Norris":      {"time": "1:29.409", "q_stage": "Q3", "gap": "+0.631s"},
+    "Lewis Hamilton":    {"time": "1:29.567", "q_stage": "Q3", "gap": "+0.789s"},
+    "Pierre Gasly":      {"time": "1:29.691", "q_stage": "Q3", "gap": "+0.913s"},
+    "Isack Hadjar":      {"time": "1:29.978", "q_stage": "Q3", "gap": "+1.200s"},
+    "Gabriel Bortoleto": {"time": "1:30.274", "q_stage": "Q3", "gap": "+1.496s"},
+    "Arvid Lindblad":    {"time": "1:30.319", "q_stage": "Q3", "gap": "+1.541s"},
+    "Max Verstappen":    {"time": "—",         "q_stage": "Q2", "gap": "Q2 out"},
+    "Esteban Ocon":      {"time": "—",         "q_stage": "Q2", "gap": "Q2 out"},
+    "Nico Hulkenberg":   {"time": "—",         "q_stage": "Q2", "gap": "Q2 out"},
+    "Liam Lawson":       {"time": "—",         "q_stage": "Q2", "gap": "Q2 out"},
+    "Franco Colapinto":  {"time": "—",         "q_stage": "Q2", "gap": "Q2 out"},
+    "Carlos Sainz":      {"time": "—",         "q_stage": "Q2", "gap": "Q2 out"},
+    "Alex Albon":        {"time": "—",         "q_stage": "Q1", "gap": "Q1 out"},
+    "Oliver Bearman":    {"time": "—",         "q_stage": "Q1", "gap": "Q1 out"},
+    "Sergio Perez":      {"time": "—",         "q_stage": "Q1", "gap": "Q1 out"},
+    "Valtteri Bottas":   {"time": "—",         "q_stage": "Q1", "gap": "Q1 out"},
+    "Fernando Alonso":   {"time": "—",         "q_stage": "Q1", "gap": "Q1 out"},
+    "Lance Stroll":      {"time": "—",         "q_stage": "Q1", "gap": "Q1 out"},
+}
+
+QUALIFYING_NOTES = [
+    "Antonelli: back-to-back poles — 2nd consecutive after China, 1:28.778",
+    "Verstappen: Q2 exit (P11) — eliminated by academy drivers Hadjar (P8) & Lindblad (P10)",
+    "Verstappen: described RB22 as 'completely undriveable' at Suzuka",
+    "Bearman: shock Q1 exit (P18) — mistake in the Esses, car pace not matching race form",
+    "Gasly: surprise P7 — Alpine's best qualifying result of 2026",
+    "Norris: penalty risk — 3 ERS failures already, 4th unit = 10-place grid drop",
+    "Bortoleto P9 / Lindblad P10 — both junior drivers into Q3 ahead of senior teammates",
+    "Aston Martin: P21/P22 — ~3s off pole, crisis deepening",
+]
+
+# ---------------------------------------------------------------------------
 # SUZUKA CIRCUIT CHARACTERISTICS
 # ---------------------------------------------------------------------------
 SUZUKA_FACTORS = {
@@ -658,17 +723,8 @@ def simulate_race(
     driver_map = {d["name"]: d for d in DRIVERS_2026}
 
     if qualifying_order is None:
-        predicted_quali = sorted(
-            DRIVERS_2026,
-            key=lambda d: (
-                0.50 * TEAM_CAR_2026[d["team"]]["pace"] +
-                0.30 * d["skill"] +
-                0.20 * d["suzuka_affinity"] +
-                random.gauss(0, 1.5)
-            ),
-            reverse=True,
-        )
-        qualifying_order = [d["name"] for d in predicted_quali]
+        # Default to confirmed qualifying grid now that it is known
+        qualifying_order = QUALIFYING_GRID_2026
 
     results = []
     for grid_pos, name in enumerate(qualifying_order, start=1):
@@ -756,40 +812,24 @@ def run_monte_carlo(
     return stats
 
 
-def predict_qualifying() -> list[dict]:
+def get_confirmed_grid() -> list[dict]:
     """
-    Predict qualifying order for Japan 2026.
-    FP3 is weighted highest (3x) — closest session to Q1/Q2/Q3 conditions.
-    Combined practice score dominates (55%); car pace and driver skill fill the rest.
+    Return the confirmed qualifying grid for Japan GP 2026.
+    Qualifying held Saturday March 28 — Antonelli pole 1:28.778.
     """
-    random.seed(42)
-    scores = []
-    for driver in DRIVERS_2026:
-        car = TEAM_CAR_2026[driver["team"]]
-        practice = PRACTICE_SCORES.get(driver["name"], 0.0)
-        # Practice pace: 55% (FP3-dominated, best qualifying proxy)
-        # Car pace: 22% | Driver skill: 15% | Suzuka affinity: 8%
-        qual_score = (
-            0.22 * car["pace"] +
-            0.15 * driver["skill"] +
-            0.08 * driver["suzuka_affinity"] +
-            0.55 * (75 + practice * 2.5) +
-            random.gauss(0, 0.8)
-        )
-        scores.append({
-            "name": driver["name"],
+    driver_map = {d["name"]: d for d in DRIVERS_2026}
+    result = []
+    for pos, name in enumerate(QUALIFYING_GRID_2026, start=1):
+        driver = driver_map[name]
+        qt = QUALIFYING_TIMES_2026.get(name, {})
+        result.append({
+            "grid": pos,
+            "name": name,
             "team": driver["team"],
             "number": driver["number"],
-            "qual_score": qual_score,
-            "champ_pts": STANDINGS_2026.get(driver["name"], 0),
-            "fp1_gap": FP1_GAPS.get(driver["name"]),
-            "fp2_gap": FP2_GAPS.get(driver["name"]),
-            "fp3_gap": FP3_GAPS.get(driver["name"]),
-            "practice_score": practice,
+            "q_time": qt.get("time", "—"),
+            "q_gap":  qt.get("gap",  "—"),
+            "q_stage": qt.get("q_stage", "—"),
+            "champ_pts": STANDINGS_2026.get(name, 0),
         })
-
-    scores.sort(key=lambda x: x["qual_score"], reverse=True)
-    for pos, entry in enumerate(scores, start=1):
-        entry["predicted_grid"] = pos
-
-    return scores
+    return result
