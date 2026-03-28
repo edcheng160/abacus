@@ -49,46 +49,62 @@ def fmt_gap(gap) -> str:
 
 
 def print_practice() -> None:
-    print_header("SUZUKA PRACTICE RESULTS  (Friday March 27)")
+    print_header("SUZUKA PRACTICE RESULTS  (Fri–Sat March 27–28)")
 
+    # FP1
     print(f"\n  FP1 — Russell fastest (1:31.666) | Cool & dry, new asphalt low-grip")
     print(f"  {'P':>3}  {'Driver':<22}  {'Team':<20}  {'Gap':>10}")
     print("  " + "-" * 58)
-    fp1_order = sorted(
-        [(n, g) for n, g in model.FP1_GAPS.items() if g is not None],
-        key=lambda x: x[1]
-    )
+    fp1_order = sorted([(n, g) for n, g in model.FP1_GAPS.items() if g is not None], key=lambda x: x[1])
     for pos, (name, gap) in enumerate(fp1_order, start=1):
         team = next((d["team"] for d in model.DRIVERS_2026 if d["name"] == name), "—")
-        note = " *sandbagging" if name == "Max Verstappen" else ""
-        print(f"  {pos:>3}  {name:<22}  {team:<20}  {fmt_gap(gap)}{note}")
+        print(f"  {pos:>3}  {name:<22}  {team:<20}  {fmt_gap(gap)}")
     print(f"   —   {'Alonso (Crawford sub)':<22}  {'Aston Martin':<20}  {'no time':>10}")
     print(f"   —   {'Verstappen':<22}  {'Red Bull Racing':<20}  {'long runs only':>10}")
 
+    # FP2
     print(f"\n  FP2 — Piastri fastest (1:30.133) | Track rubbered in, all soft tyres")
-    print(f"  {'P':>3}  {'Driver':<22}  {'Team':<20}  {'Gap':>10}  FP2 Significance")
-    print("  " + "-" * 75)
-    fp2_order = sorted(
-        [(n, g) for n, g in model.FP2_GAPS.items() if g is not None],
-        key=lambda x: x[1]
-    )
-    highlights = {
-        "Oscar Piastri":    "McLaren fastest — car suits Suzuka",
-        "Nico Hulkenberg":  "best midfield — Audi surprise",
-        "Alex Albon":       "Williams stronger than expected",
-        "Max Verstappen":   "P10 — understeer, car struggling here",
-        "Fernando Alonso":  "returned after missing FP1",
+    print(f"  {'P':>3}  {'Driver':<22}  {'Team':<20}  {'Gap':>10}  Note")
+    print("  " + "-" * 72)
+    fp2_order = sorted([(n, g) for n, g in model.FP2_GAPS.items() if g is not None], key=lambda x: x[1])
+    fp2_highlights = {
+        "Oscar Piastri":   "McLaren fastest — car suits Suzuka",
+        "Nico Hulkenberg": "best midfield — Audi surprise",
+        "Alex Albon":      "Williams strong",
+        "Max Verstappen":  "P10 — understeer complaint on radio",
+        "Fernando Alonso": "returned after missing FP1",
     }
     for pos, (name, gap) in enumerate(fp2_order, start=1):
         team = next((d["team"] for d in model.DRIVERS_2026 if d["name"] == name), "—")
-        hl = f"  ← {highlights[name]}" if name in highlights else ""
+        hl = f"  ← {fp2_highlights[name]}" if name in fp2_highlights else ""
         print(f"  {pos:>3}  {name:<22}  {team:<20}  {fmt_gap(gap)}{hl}")
     print(f"   —   {'Lindblad':<22}  {'Racing Bulls':<20}  {'no time':>10}  ← gearbox failure")
 
-    print(f"\n  KEY PRACTICE INCIDENTS")
+    # FP3
+    print(f"\n  FP3 — Antonelli fastest (1:29.362) | Mercedes step — first sub-1:30 of weekend")
+    print(f"  {'P':>3}  {'Driver':<22}  {'Team':<20}  {'Gap':>10}  Note")
+    print("  " + "-" * 72)
+    fp3_order = sorted([(n, g) for n, g in model.FP3_GAPS.items() if g is not None], key=lambda x: x[1])
+    fp3_highlights = {
+        "Kimi Antonelli":    "first sub-1:30 — Mercedes clear step",
+        "Nico Hulkenberg":   "P7 again — Audi best midfield at Suzuka",
+        "Max Verstappen":    "P8 — understeer unresolved",
+        "Gabriel Bortoleto": "P9 — both Audis ahead of Red Bull",
+        "Lando Norris":      "battery change — only 22 min on track",
+    }
+    for pos, (name, gap) in enumerate(fp3_order, start=1):
+        team = next((d["team"] for d in model.DRIVERS_2026 if d["name"] == name), "—")
+        hl = f"  ← {fp3_highlights[name]}" if name in fp3_highlights else ""
+        print(f"  {pos:>3}  {name:<22}  {team:<20}  {fmt_gap(gap)}{hl}")
+
+    # Incidents
+    fp3_incidents = [i for i in model.PRACTICE_INCIDENTS if i.startswith("FP3")]
+    fp2_incidents = [i for i in model.PRACTICE_INCIDENTS if i.startswith("FP2")]
+    fp1_incidents = [i for i in model.PRACTICE_INCIDENTS if i.startswith("FP1")]
+    print(f"\n  KEY INCIDENTS")
     print("  " + "-" * 58)
-    for note in model.PRACTICE_INCIDENTS:
-        print(f"  ⚠  {note}")
+    for note in fp3_incidents + fp2_incidents + fp1_incidents:
+        print(f"  ⚠  {note[5:]}")
 
 
 def print_standings() -> None:
@@ -104,15 +120,16 @@ def print_standings() -> None:
 
 def print_qualifying(quali_result: list[dict]) -> None:
     print_header("PREDICTED QUALIFYING — SUZUKA 2026")
-    print(f"  {'P':>3}  {'#':>3}  {'Driver':<22}  {'Team':<20}  {'FP1 Gap':>9}  {'FP2 Gap':>9}  {'Champ Pts':>10}")
-    print("  " + "-" * 80)
+    print(f"  {'P':>3}  {'#':>3}  {'Driver':<22}  {'Team':<20}  {'FP1':>9}  {'FP2':>9}  {'FP3':>9}  {'Pts':>5}")
+    print("  " + "-" * 88)
     for entry in quali_result:
         grid = entry["predicted_grid"]
         flag = " ◄ POLE" if grid == 1 else ""
         fp1 = fmt_gap(entry.get("fp1_gap"))
         fp2 = fmt_gap(entry.get("fp2_gap"))
+        fp3 = fmt_gap(model.FP3_GAPS.get(entry["name"]))
         print(f"  {grid:>3}  #{entry['number']:<3}  {entry['name']:<22}  "
-              f"{entry['team']:<20}  {fp1:>9}  {fp2:>9}  {entry['champ_pts']:>10}{flag}")
+              f"{entry['team']:<20}  {fp1:>9}  {fp2:>9}  {fp3:>9}  {entry['champ_pts']:>5}{flag}")
 
 
 def print_single_race(race_result: list[dict], weather: str) -> None:
@@ -200,7 +217,7 @@ def main():
     print("\n" + "╔" + "═" * 64 + "╗")
     print("║" + "  JAPAN GRAND PRIX 2026 — PREDICTION MODEL".center(64) + "║")
     print("║" + "  Suzuka | Round 3 | March 29, 2026".center(64) + "║")
-    print("║" + "  Data: R1+R2 results + Suzuka FP1/FP2 (March 27)".center(64) + "║")
+    print("║" + "  Data: R1+R2 results + Suzuka FP1/FP2/FP3 (Mar 27–28)".center(64) + "║")
     print("╚" + "═" * 64 + "╝")
 
     # 1. Practice session results
@@ -248,7 +265,7 @@ def main():
     print(f"  Weather condition    :  {args.weather.upper()}")
     print(f"  Safety car prob      :  {args.sc_prob * 100:.0f}%")
     print(f"  Simulations run      :  {args.sims:,}")
-    print(f"  Data source          :  R1 Australia + R2 China + Suzuka FP1/FP2")
+    print(f"  Data source          :  R1 Australia + R2 China + Suzuka FP1/FP2/FP3")
     print()
 
 

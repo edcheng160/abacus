@@ -423,17 +423,53 @@ FP2_GAPS: dict[str, float | None] = {
     "Arvid Lindblad":    None,   # gearbox failure — no time set
 }
 
-# Notable FP incidents that affect predictions
+# ---------------------------------------------------------------------------
+# JAPAN FP3 — Saturday March 28 | Fastest: Antonelli 1:29.362
+# Mercedes showed clear step — first driver under 1:30 all weekend.
+# FIA reduced qualifying energy recharge limit 9.0→8.0 MJ (super clipping fix).
+# ---------------------------------------------------------------------------
+FP3_GAPS: dict[str, float | None] = {
+    "Kimi Antonelli":    0.000,
+    "George Russell":    0.254,
+    "Charles Leclerc":   0.867,
+    "Oscar Piastri":     1.002,
+    "Lewis Hamilton":    1.021,
+    "Lando Norris":      1.238,   # battery change — only ~22 min of session
+    "Nico Hulkenberg":   1.296,
+    "Max Verstappen":    1.548,
+    "Gabriel Bortoleto": 1.638,
+    "Pierre Gasly":      1.720,
+    "Isack Hadjar":      1.732,
+    "Liam Lawson":       1.735,
+    "Arvid Lindblad":    1.926,
+    "Esteban Ocon":      1.964,
+    "Oliver Bearman":    2.196,
+    "Alex Albon":        2.371,
+    "Franco Colapinto":  2.397,
+    "Carlos Sainz":      2.467,
+    "Valtteri Bottas":   3.141,
+    "Sergio Perez":      3.178,
+    "Lance Stroll":      4.123,
+    "Fernando Alonso":   4.167,
+}
+
+# Notable incidents across all practice sessions
 PRACTICE_INCIDENTS = [
-    "Norris: hydraulics scare in FP2 (garage 23min) — McLaren reliability concern",
-    "Verstappen: repeated understeer complaints on radio, FP2 P10 (+1.376s)",
-    "Hulkenberg: FP2 P7 — Audi fastest midfield car at Suzuka",
-    "Albon: FP2 P8 — Williams strong, but contact with Perez in FP1 under investigation",
-    "Lindblad: gearbox failure FP2 — no representative time, grid position risk",
-    "Alonso: missed FP1 (Crawford subbed) — absent at birth of child, returned FP2",
-    "Colapinto: under investigation for erratic driving / impeding Verstappen in FP2",
-    "Bortoleto (Audi): power unit work limited him to 2 laps early in FP2",
-    "Hamilton: radio — 'no confidence in the car' during FP2 long runs",
+    # FP3
+    "FP3: Antonelli (Mercedes) broke 1:30 barrier — clear Mercedes step vs FP1/FP2",
+    "FP3: Norris battery change — only 22 min on track (P6), 3rd McLaren reliability issue",
+    "FP3: Hulkenberg P7, Bortoleto P9 — both Audis sandwiching Verstappen (P8)",
+    "FP3: Verstappen P8 (+1.548s) — Red Bull understeer unresolved heading into qualifying",
+    "FP3: Piastri under investigation for impeding Hulkenberg at 130R",
+    "FP3: FIA cut qualifying energy recharge limit 9.0→8.0 MJ to stop 'super clipping'",
+    # FP2
+    "FP2: Norris hydraulics scare (garage 23min) — McLaren reliability repeated concern",
+    "FP2: Albon P8 — Williams strong; contact with Perez in FP1 under investigation",
+    "FP2: Colapinto under investigation for impeding Verstappen on timed lap",
+    "FP2: Hamilton radio — 'no confidence in the car' during long runs",
+    # FP1
+    "FP1: Alonso missed session — Crawford subbed (birth of child); Alonso returned FP2",
+    "FP1: Lindblad gearbox failure FP2 — limited data, grid position risk",
 ]
 
 
@@ -449,9 +485,10 @@ def _gap_to_adjustment(gap: float | None, scale: float = 4.0) -> float:
 
 def _compute_practice_scores() -> dict[str, float]:
     """
-    Weighted average of FP1 and FP2 pace adjustments.
-    FP2 weight 2.0 (soft tyres, rubbered track ≈ qualifying conditions).
-    FP1 weight 1.0.
+    Weighted average of FP1/FP2/FP3 pace adjustments.
+    FP3 weight 3.0 — closest to qualifying, rubbered track, full soft-tyre effort.
+    FP2 weight 2.0 — representative soft-tyre runs.
+    FP1 weight 1.0 — early session, green track, less representative.
     Returns adjustment in the same -10..+8 range as gap_to_adjustment.
     """
     scores: dict[str, float] = {}
@@ -459,21 +496,23 @@ def _compute_practice_scores() -> dict[str, float]:
         name = driver["name"]
         fp1_adj = _gap_to_adjustment(FP1_GAPS.get(name))
         fp2_adj = _gap_to_adjustment(FP2_GAPS.get(name))
+        fp3_adj = _gap_to_adjustment(FP3_GAPS.get(name))
         fp1_has = FP1_GAPS.get(name) is not None
         fp2_has = FP2_GAPS.get(name) is not None
+        fp3_has = FP3_GAPS.get(name) is not None
 
-        if fp1_has and fp2_has:
-            score = (1.0 * fp1_adj + 2.0 * fp2_adj) / 3.0
-        elif fp2_has:
-            score = fp2_adj
-        elif fp1_has:
-            score = fp1_adj * 0.7   # FP1 alone is less reliable
-        else:
-            score = 0.0             # no data (Lindblad FP2 + Verstappen/Alonso FP1)
+        total_w = (1.0 * fp1_has) + (2.0 * fp2_has) + (3.0 * fp3_has)
+        if total_w == 0:
+            scores[name] = 0.0
+            continue
 
-        scores[name] = round(score, 2)
+        weighted = (1.0 * fp1_adj * fp1_has +
+                    2.0 * fp2_adj * fp2_has +
+                    3.0 * fp3_adj * fp3_has) / total_w
+        scores[name] = round(weighted, 2)
 
     return scores
+
 
 
 PRACTICE_SCORES = _compute_practice_scores()
@@ -720,33 +759,32 @@ def run_monte_carlo(
 def predict_qualifying() -> list[dict]:
     """
     Predict qualifying order for Japan 2026.
-    FP2 practice pace is heavily weighted — it's the best predictor of Q3 pace
-    on a rubbered-in, soft-tyre track at Suzuka.
+    FP3 is weighted highest (3x) — closest session to Q1/Q2/Q3 conditions.
+    Combined practice score dominates (55%); car pace and driver skill fill the rest.
     """
     random.seed(42)
     scores = []
     for driver in DRIVERS_2026:
         car = TEAM_CAR_2026[driver["team"]]
         practice = PRACTICE_SCORES.get(driver["name"], 0.0)
-        # Practice pace: 45% (dominant signal at this point in weekend)
-        # Car pace: 25% | Driver skill: 18% | Suzuka affinity: 12%
+        # Practice pace: 55% (FP3-dominated, best qualifying proxy)
+        # Car pace: 22% | Driver skill: 15% | Suzuka affinity: 8%
         qual_score = (
-            0.25 * car["pace"] +
-            0.18 * driver["skill"] +
-            0.12 * driver["suzuka_affinity"] +
-            0.45 * (75 + practice * 2.5) +   # scale practice adj to ~same range as ratings
+            0.22 * car["pace"] +
+            0.15 * driver["skill"] +
+            0.08 * driver["suzuka_affinity"] +
+            0.55 * (75 + practice * 2.5) +
             random.gauss(0, 0.8)
         )
-        fp2_gap = FP2_GAPS.get(driver["name"])
-        fp1_gap = FP1_GAPS.get(driver["name"])
         scores.append({
             "name": driver["name"],
             "team": driver["team"],
             "number": driver["number"],
             "qual_score": qual_score,
             "champ_pts": STANDINGS_2026.get(driver["name"], 0),
-            "fp1_gap": fp1_gap,
-            "fp2_gap": fp2_gap,
+            "fp1_gap": FP1_GAPS.get(driver["name"]),
+            "fp2_gap": FP2_GAPS.get(driver["name"]),
+            "fp3_gap": FP3_GAPS.get(driver["name"]),
             "practice_score": practice,
         })
 
