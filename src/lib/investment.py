@@ -1,25 +1,25 @@
-# Investment 10x Model
+# Investment 2x Model
 # Disclaimer: For educational and modeling purposes ONLY.
 # This is NOT financial advice. Past performance does not guarantee future results.
-# High-return investments carry extreme risk, including total loss of capital.
+# All investments carry risk, including possible loss of principal.
 
 class InvestmentModel:
     """
-    Models a $1000 portfolio targeting 10x returns in one year.
-    Allocates across high-growth sectors: AI, semiconductors, crypto, quantum computing.
+    Models a $1000 portfolio targeting 2x returns in one year.
+    Allocates across established growth companies and blue-chip tech —
+    a more conservative approach than speculative small-caps or crypto.
     """
 
-    # Hypothetical high-growth candidates with sector, allocation %, and projected multiplier.
-    # Multipliers reflect "bull-case" speculative scenarios, NOT guarantees.
-    # RGTI was up ~1500% in late 2024; PLTR was up ~340% in 2024; BTC did ~150% in 2024.
-    # These are the kinds of outlier moves needed to target 10x in one year.
+    # Conservative-to-moderate growth candidates.
+    # Multipliers reflect realistic bull-case annual returns based on recent history.
+    # NVDA doubled in 2023 and again in 2024. MSFT, GOOGL, META all had strong years.
     PORTFOLIO = {
-        "RGTI":  {"sector": "Quantum Computing",     "allocation": 0.35, "projected_multiplier": 15.0},
-        "IONQ":  {"sector": "Quantum Computing",     "allocation": 0.20, "projected_multiplier": 10.0},
-        "MSTR":  {"sector": "Bitcoin Treasury",      "allocation": 0.15, "projected_multiplier": 8.0},
-        "BTC":   {"sector": "Cryptocurrency",        "allocation": 0.15, "projected_multiplier": 5.0},
-        "PLTR":  {"sector": "AI / Data Analytics",   "allocation": 0.10, "projected_multiplier": 5.0},
-        "COIN":  {"sector": "Crypto Exchange",       "allocation": 0.05, "projected_multiplier": 6.0},
+        "NVDA":  {"sector": "AI / Semiconductors",   "allocation": 0.25, "projected_multiplier": 2.5},
+        "META":  {"sector": "Social Media / AI",     "allocation": 0.20, "projected_multiplier": 2.0},
+        "GOOGL": {"sector": "Search / Cloud / AI",   "allocation": 0.20, "projected_multiplier": 1.8},
+        "MSFT":  {"sector": "Cloud / AI",            "allocation": 0.15, "projected_multiplier": 1.7},
+        "AMZN":  {"sector": "E-Commerce / Cloud",    "allocation": 0.10, "projected_multiplier": 1.8},
+        "PLTR":  {"sector": "AI / Data Analytics",   "allocation": 0.10, "projected_multiplier": 2.0},
     }
 
     def __init__(self, initial_investment: float):
@@ -50,10 +50,10 @@ class InvestmentModel:
         results, total = self.calculate_returns()
         width = 80
         print("=" * width)
-        print("  10X INVESTMENT MODEL  —  Educational / Hypothetical Scenario Only")
+        print("  2X INVESTMENT MODEL  —  Educational / Hypothetical Scenario Only")
         print("=" * width)
         print(f"  Initial Investment : ${self.initial:>10,.2f}")
-        print(f"  Target             : 10x  (${self.initial * 10:>10,.2f})")
+        print(f"  Target             :  2x  (${self.initial * 2:>10,.2f})")
         print("=" * width)
         header = f"{'Ticker':<7} {'Sector':<26} {'Alloc%':>6}  {'Allocated':>10}  {'Proj. Value':>11}  {'Mult':>5}"
         print(header)
@@ -73,7 +73,7 @@ class InvestmentModel:
         print()
         print("  RISK NOTES:")
         print("  - These projections are speculative scenarios, NOT predictions.")
-        print("  - Crypto and small-cap stocks can lose 50-90%+ in a single year.")
+        print("  - Even blue-chip stocks can decline 20-40%+ in a bear market.")
         print("  - Diversification reduces but does NOT eliminate risk.")
         print("  - Consult a licensed financial advisor before investing.")
         print("=" * width)
